@@ -2,8 +2,8 @@
 # Samy Daghastani & Alexis Hanna Gerguis
 # ESILV A4 IF2, prof: Jiang Pu, TD: Vincent Lambert
 #
-# on utilise QUE np.random.uniform et np.random.randint
-# pas de randn, pas de normal, pas de truc chelou
+#only np.random.uniform and np.random.randint allowed
+# no randn, no normal, nothing else
 
 import numpy as np
 import matplotlib
@@ -14,36 +14,32 @@ from scipy.stats import norm
 np.random.seed(42)
 
 
-# ========================================
-# GENERATEUR NORMAL (exercice 1)
-# c'est ca qu'on utilise dans TOUT le projet
-# ========================================
+# NORMAL GENERATOR (exo 1)
+#used everywhere in the project
 
 def generate_normal(n):
-    # ratio of uniforms + signe aleatoire pour avoir N(0,1)
-    # on a prouve en exo 1 que Z = U2/U1 suit une demi-normale
+    #ratio of uniforms + random sign for N(0,1)
+    #Z = U2/U1 follows half-normal (cf exo 1)
     samples = []
     while len(samples) < n:
         u1 = np.random.uniform(0,1)
         u2 = np.random.uniform(0,1)
         
         if u1 > 0 and u1 <= np.exp(-0.25*(u2/u1)**2):
-            z = u2/u1  # z >= 0 toujours
-            # signe aleatoire pour symetriser
+            z = u2/u1  #z >= 0
+            #random sign
             sign = 2*np.random.randint(0,2) - 1
             samples.append(sign * z)
     return np.array(samples[:n])
 
 
-# ========================================
 # EXERCICE 1 : Ratio of Uniforms
-# ========================================
 print("="*60)
 print("EXERCICE 1")
 print("="*60)
 
 def ratio_of_uniforms_raw(n):
-    # version sans le signe, juste pour l'analyse
+    #without the sign
     samples = []
     total = 0
     while len(samples) < n:
@@ -62,18 +58,18 @@ print(f"moyenne Z: {np.mean(Z_raw):.4f} (theorique sqrt(2/pi) = {np.sqrt(2/np.pi
 print(f"std Z: {np.std(Z_raw):.4f}")
 print("=> Z suit |N(0,1)| (demi-normale)")
 
-# on verifie aussi avec la version symetrisee
+#check symmetrized version
 np.random.seed(42)
 Z_sym = generate_normal(100000)
 print(f"\navec symetrisation: moy={np.mean(Z_sym):.4f}, std={np.std(Z_sym):.4f}")
 
-# taux theorique: sqrt(pi/8)
+#taux theorique
 p_th = np.sqrt(np.pi/8)
 print(f"\ntaux theorique: {p_th:.6f}")
 print(f"taux empirique: {acc:.6f}")
 print(f"nb moyen iterations: {1/p_th:.4f} (th), {1/acc:.4f} (emp)")
 
-# --- figure exo 1 ---
+
 fig, axes = plt.subplots(2,2, figsize=(12,10))
 
 ax = axes[0,0]
@@ -121,21 +117,19 @@ plt.close()
 print("\n=> figure sauvegardee")
 
 
-# ========================================
 # EXERCICE 2 : Importance Sampling
-# ========================================
 print("\n" + "="*60)
 print("EXERCICE 2")
 print("="*60)
 
-# parametres BS
+#BS params
 S0 = 53.6
-r_rate = 0.015   # 1.5% / an
-sigma = 0.235    # 23.5% /sqrt(an)
+r_rate = 0.015   #1.5%/an
+sigma = 0.235    #23.5%/sqrt(an)
 T = 1.0
-K = 650000.0     # oui c'est enorme, c'est le but
+K = 650000.0     # oui c'est enorme
 
-# d1 d2 pour la formule fermee
+#d1 d2 closed form
 d1 = (np.log(S0/K) + (r_rate + 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
 d2 = d1 - sigma*np.sqrt(T)
 A = (np.log(K/S0) - (r_rate - 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
@@ -145,23 +139,23 @@ print(f"d1={d1:.4f}, d2={d2:.4f}")
 print(f"Phi(d1)={norm.cdf(d1):.2e}, Phi(d2)={norm.cdf(d2):.2e}")
 print(f"A = {A:.4f}")
 print("=> formule fermee donne 0/0, ca marche pas numeriquement")
+# print("debug d1 d2")  # remove later
 
 def importance_sampling_ratio(n_sim, mu_shift):
-    # IS: on shift la mesure de N(0,1) vers N(mu,1)
-    # puis on pondere par le likelihood ratio
+    #IS: shift N(0,1) to N(mu,1) then weight by LR
     Z_std = generate_normal(n_sim)
-    Z_sh = Z_std + mu_shift  # maintenant c'est N(mu, 1)
+    Z_sh = Z_std + mu_shift  # N(mu,1)
     
     ST = S0 * np.exp((r_rate - 0.5*sigma**2)*T + sigma*np.sqrt(T)*Z_sh)
     
-    # log likelihood ratio de N(0,1) vs N(mu,1)
+    #log likelihood ratio
     log_LR = -mu_shift*Z_sh + 0.5*mu_shift**2
     
     call_pay = np.maximum(ST - K, 0)
     digital_pay = (ST > K).astype(float)
     
-    # le trick: on ajoute C = -max(log_LR) pour pas exploser
-    # mathematiquement ca change rien car les C se simplifient
+    #trick: C = -max(log_LR) to avoid overflow
+    #doesnt change anything mathematically
     C = -np.max(log_LR)
     w = np.exp(log_LR + C)
     
@@ -169,13 +163,13 @@ def importance_sampling_ratio(n_sim, mu_shift):
     den = np.mean(w * digital_pay)
     return num/den if den > 0 else np.nan
 
-# on fait tourner
+#run it
 print("\n--- IS avec shift mu = A ---")
 np.random.seed(42)
 ratio_is_big = importance_sampling_ratio(500000, A)
 print(f"ratio (500k): {ratio_is_big:.2f}")
 
-# plusieurs runs pour IC
+#multiple runs for CI
 np.random.seed(100)
 ratios_is = []
 for _ in range(30):
@@ -190,11 +184,11 @@ se_is = std_is/np.sqrt(len(ratios_is))
 print(f"30 runs de 50k: {mean_is:.2f} +/- {std_is:.2f}")
 print(f"IC 95%: [{mean_is - 1.96*se_is:.2f}, {mean_is + 1.96*se_is:.2f}]")
 
-# realisme?
+#realiste ?
 print(f"\nratio ~ {mean_is:.0f} => faudrait 3800 digitales pour 1 call")
-print(f"K={K} >> S0={S0}, option mega OTM, pas realsite du tout")
+print(f"K={K} >> S0={S0}, option mega OTM, pas realiste du tt")
 
-# --- figure exo 2 ---
+
 fig, axes = plt.subplots(1,3, figsize=(15,4.5))
 
 ax = axes[0]
@@ -206,7 +200,7 @@ ax.set_xlabel('z'); ax.set_ylabel('densite')
 ax.set_title('changement de mesure')
 ax.legend(fontsize=8); ax.grid(True, alpha=0.3)
 
-# convergence
+#convergence plot
 ax = axes[1]
 np.random.seed(42)
 nlist = [1000,2000,5000,10000,20000,50000,100000,200000]
@@ -220,7 +214,7 @@ ax.errorbar(nlist, mc, yerr=[1.96*s for s in sc], fmt='o-', capsize=3, color='st
 ax.set_xscale('log'); ax.set_xlabel('n'); ax.set_ylabel('ratio')
 ax.set_title('convergence IS'); ax.grid(True, alpha=0.3)
 
-# sensibilite au shift
+#sensitivity to shift
 ax = axes[2]
 np.random.seed(42)
 mus = np.linspace(A-5, A+5, 12)
@@ -237,37 +231,27 @@ plt.close()
 print("=> figure sauvegardee")
 
 
-# ========================================
 # EXERCICE 3 : Acceptance-Rejection
-# ========================================
 print("\n" + "="*60)
 print("EXERCICE 3")
 print("="*60)
 
-# Q1: ratio = E[Phi(X) | X >= A] avec Phi(x) = S0*exp(...) - K
+# ratio = E[Phi(X) | X >= A]
 print(f"\nA = {A:.4f}")
 print("ratio = E[Phi(X) | X >= A]")
 
-# Q2: Y ~ Exp(lam) => Y-A | Y>=A ~ Exp(lam) (sans memoire)
-# Q3: g(y) = lam * exp(-lam*(y-A)) pour y >= A
-# Q4: generer V ~ Exp(lam) et retourner Y = V+A
-# Q5: f(x) = exp(-x^2/2) pour x > A
+#Q2-Q5: see report for derivations
 
-# Q6-7: trouver M et lambda optimal
-# log(f/g) = -x^2/2 + lam*(x-A) - log(lam)
-# derivee = -x + lam = 0 => x* = lam
-# log M = lam^2/2 - lam*A - log(lam)
-# minimiser M: lam - A - 1/lam = 0 => lam^2 - A*lam - 1 = 0
+#Q6-7: optimal lambda
+#lam^2 - A*lam - 1 = 0
 lam_opt = (A + np.sqrt(A**2 + 4)) / 2
 log_M = lam_opt**2/2 - lam_opt*A - np.log(lam_opt)
 print(f"\nlambda* = {lam_opt:.4f}")
 print(f"log M = {log_M:.2f} (donc M est minuscle, presque tout est accepte)")
 
-# Q8: implementation
+# implementation
 def gen_cond_normal_AR(n, A_val, lam):
-    # acceptance rejection pour X | X > A
-    # proposal: exponentielle shiftee de A
-    # target: exp(-x^2/2) restreint a x > A
+    #AR for X | X > A
     logM = lam**2/2 - lam*A_val - np.log(lam)
     samples = []
     total = 0
@@ -276,7 +260,7 @@ def gen_cond_normal_AR(n, A_val, lam):
         Y = A_val - np.log(u1)/lam   # Y = A + Exp(lam)
         
         u2 = np.random.uniform(0,1)
-        # tout en log pour pas exploser
+        #log scale to avoid overflow
         log_acc = -Y**2/2 + lam*(Y-A_val) - np.log(lam) - logM
         total += 1
         if np.log(u2) <= log_acc:
@@ -286,7 +270,7 @@ def gen_cond_normal_AR(n, A_val, lam):
 np.random.seed(42)
 X_cond, acc_ar = gen_cond_normal_AR(200000, A, lam_opt)
 
-# payoff conditionnel
+#conditional payoff
 Phi_vals = S0*np.exp((r_rate - 0.5*sigma**2)*T + sigma*np.sqrt(T)*X_cond) - K
 ratio_ar = np.mean(Phi_vals)
 se_ar = np.std(Phi_vals)/np.sqrt(len(Phi_vals))
@@ -294,7 +278,7 @@ se_ar = np.std(Phi_vals)/np.sqrt(len(Phi_vals))
 print(f"\ntaux acceptation: {acc_ar:.4f}")
 print(f"ratio AR: {ratio_ar:.2f} +/- {se_ar:.2f}")
 
-# --- figure exo 3 ---
+
 fig, axes = plt.subplots(1,3, figsize=(15,4.5))
 
 ax = axes[0]
@@ -302,7 +286,7 @@ ax.hist(X_cond[:50000], bins=80, density=True, alpha=0.6, color='coral', edgecol
 xr = np.linspace(A, A+1.5, 200)
 g_vals = lam_opt*np.exp(-lam_opt*(xr-A))
 ax.plot(xr, g_vals, 'b--', lw=1.5, label=f'proposal g')
-# target normalisee (on triche un peu pour le plot)
+#normalized for plotting
 f_v = np.exp(-xr**2/2)
 f_v = f_v / (np.sum(f_v)*(xr[1]-xr[0]))
 ax.plot(xr, f_v, 'r-', lw=2, label='target f')
@@ -332,17 +316,14 @@ plt.close()
 print("=> figure sauvegardee")
 
 
-# ========================================
 # EXERCICE 4 : Quasi-Monte Carlo
-# ========================================
 print("\n" + "="*60)
 print("EXERCICE 4")
 print("="*60)
 
-# Q1: incrementation b-aire, LITTLE ENDIAN (lsb en premier)
+#Q1: b-ary increment (little endian)
 def incr_b_ary(digits, b):
-    # addition de 1 en base b, retenue de gauche a droite
-    # comme on a fait au TD6 sur Van der Corput
+    #+1 in base b, carry propagation
     new = digits.copy()
     carry = 1
     i = 0
@@ -358,21 +339,20 @@ def incr_b_ary(digits, b):
         new.append(1)
     return new
 
-# test rapide
+#quick test
 print("\n--- Q1: test incrementation ---")
 print(f"base 10: (9,9,2,1) -> {incr_b_ary([9,9,2,1], 10)}")  # doit donner [0,0,3,1]
 print(f"base 2: (1,1,1) -> {incr_b_ary([1,1,1], 2)}")  # doit donner [0,0,0,1]
 
 
-# Q2: Van der Corput avec Horner
+#Q2: VdC + Horner
 def vdc_horner(k_max, b):
-    # genere les k_max premiers termes
-    # on reutilise incr_b_ary du TD6 et Horner pour evaluer
+    #generate first k_max terms using Horner
     seq = np.zeros(k_max)
     digits = [0]
     for k in range(1, k_max):
         digits = incr_b_ary(digits, b)
-        # horner: on lit les digits de droite a gauche
+        #horner eval
         val = 0.0
         for d in reversed(digits):
             val = (val + d)/b
@@ -382,12 +362,12 @@ def vdc_horner(k_max, b):
 print("\n--- Q2: Van der Corput ---")
 vdc2 = vdc_horner(10, 2)
 print(f"base 2: {[f'{v:.4f}' for v in vdc2]}")
-# doit etre 0, 1/2, 1/4, 3/4, 1/8, 5/8...
+#0, 1/2, 1/4, 3/4, 1/8, 5/8...
 
 
-# Q3: QMC + IS (le QMC tout seul marche pas vu que P(ST>K) = 0)
+#Q3: QMC+IS
 def qmc_is_ratio(n_pts, b, mu):
-    # on combine VdC + IS: uniformes -> Phi^-1 -> shift de A
+    #VdC + IS combined
     u = vdc_horner(n_pts, b)
     u = np.clip(u, 1e-10, 1-1e-10)
     z = norm.ppf(u)
@@ -413,9 +393,9 @@ for b in [2,3,5]:
         print(f"  base {b}, n={n:6d}: ratio = {rv:.2f}" if not np.isnan(rv) else f"  base {b}, n={n:6d}: NaN")
 
 
-# Q4: randomized QMC pour le SE
+#Q4: RQMC
 def rqmc_is(n_pts, b, mu, n_rep=30):
-    # cranley-patterson: on shift la sequence et on prend modulo 1
+    #cranley-patterson: shift + mod 1
     vdc = vdc_horner(n_pts, b)
     res = []
     for _ in range(n_rep):
@@ -446,7 +426,7 @@ for b in [2,3,5]:
     print(f"  base {b}: {m:.2f} +/- {s:.2f}" if not np.isnan(m) else f"  base {b}: NaN")
 
 
-# --- figure exo 4 ---
+
 fig, axes = plt.subplots(2,2, figsize=(12,10))
 
 ax = axes[0,0]
@@ -456,7 +436,7 @@ for b, col in [(2,'blue'),(3,'green'),(5,'orange')]:
 ax.set_xlabel('k'); ax.set_ylabel('phi_k')
 ax.set_title('sequences Van der Corput'); ax.legend(); ax.grid(True, alpha=0.3)
 
-# MC vs QMC sur un probleme 1D simple
+#MC vs QMC on simple 1D problem
 ax = axes[0,1]
 nv = [100, 500, 1000, 2000, 5000, 10000, 50000]
 se_mc = []; se_qmc = []
@@ -473,7 +453,7 @@ ax.loglog(nv, ref, 'k--', alpha=0.4, label='O(1/sqrt(n))')
 ax.set_xlabel('n'); ax.set_ylabel('std empirique')
 ax.set_title('MC vs QMC (1D)'); ax.legend(fontsize=9); ax.grid(True, alpha=0.3)
 
-# halton 2D (bases 2,3)
+#halton 2D scatter
 ax = axes[1,0]
 ns = 500
 vx = vdc_horner(ns, 2); vy = vdc_horner(ns, 3)
@@ -483,7 +463,7 @@ ax.set_title(f'Halton (2,3) - {ns} pts')
 ax.set_xlim(-0.05,1.05); ax.set_ylim(-0.05,1.05)
 ax.grid(True, alpha=0.3); ax.set_aspect('equal')
 
-# random pour comparer
+#random for comparison
 ax = axes[1,1]
 ax.scatter(np.random.uniform(0,1,ns), np.random.uniform(0,1,ns), s=5, alpha=0.6, color='gray')
 ax.set_xlabel('U1'); ax.set_ylabel('U2')
@@ -498,32 +478,30 @@ plt.close()
 print("=> figure sauvegardee")
 
 
-# ========================================
 # COMPARAISON DES 3 METHODES (exo 2-3-4)
-# ========================================
 print("\n" + "="*60)
 print("COMPARAISON")
 print("="*60)
 
 np.random.seed(42)
 
-# IS
+#IS
 is_runs = [importance_sampling_ratio(100000, A) for _ in range(50)]
 is_runs = np.array([x for x in is_runs if not np.isnan(x)])
 
-# AR
+#AR
 X_ar, _ = gen_cond_normal_AR(200000, A, lam_opt)
 Phi_f = S0*np.exp((r_rate-0.5*sigma**2)*T + sigma*np.sqrt(T)*X_ar) - K
 r_ar = np.mean(Phi_f); se_ar2 = np.std(Phi_f)/np.sqrt(len(Phi_f))
 
-# QMC+IS
+#QMC
 m_q, se_q = rqmc_is(100000, 2, A, 50)
 
 print(f"IS:     {np.mean(is_runs):.2f} +/- {np.std(is_runs)/np.sqrt(len(is_runs)):.2f}")
 print(f"AR:     {r_ar:.2f} +/- {se_ar2:.2f}")
 print(f"QMC+IS: {m_q:.2f} +/- {se_q:.2f}")
 
-# figure comparaison
+#comparison figure
 fig, ax = plt.subplots(figsize=(8,5))
 methods = ['IS', 'AR', 'QMC+IS']
 means = [np.mean(is_runs), r_ar, m_q]
@@ -540,23 +518,21 @@ plt.close()
 print("=> figure sauvegardee")
 
 
-# ========================================
 # EXERCICE 5 : Analyse de donnees
-# ========================================
 print("\n" + "="*60)
 print("EXERCICE 5")
 print("="*60)
 
-# chargement des donnees
+#load data
 data = np.loadtxt('data_simulation_methods.csv', delimiter=',')
 p1 = data[:,0]; p2 = data[:,1]
 n_data = len(p1)
 
-# log returns
+#log returns
 lr1 = np.log(p1[1:]/p1[:-1])
 lr2 = np.log(p2[1:]/p2[:-1])
 
-# Q1: stats descriptives
+#Q1 stats
 drift1 = np.mean(lr1)*252; drift2 = np.mean(lr2)*252
 vol1 = np.std(lr1)*np.sqrt(252); vol2 = np.std(lr2)*np.sqrt(252)
 corr_lr = np.corrcoef(lr1, lr2)[0,1]
@@ -566,7 +542,7 @@ print(f"actif 1: drift={drift1:.4f}, vol={vol1:.4f}")
 print(f"actif 2: drift={drift2:.4f}, vol={vol2:.4f}")
 print(f"corr log-returns: {corr_lr:.4f}")
 
-# Q2: normalite
+#Q2 normality check
 sk1 = np.mean(((lr1-np.mean(lr1))/np.std(lr1))**3)
 ku1 = np.mean(((lr1-np.mean(lr1))/np.std(lr1))**4)
 sk2 = np.mean(((lr2-np.mean(lr2))/np.std(lr2))**3)
@@ -574,11 +550,11 @@ ku2 = np.mean(((lr2-np.mean(lr2))/np.std(lr2))**4)
 print(f"\n--- Q2: normalite ---")
 print(f"actif 1: skew={sk1:.4f}, kurtosis={ku1:.4f}")
 print(f"actif 2: skew={sk2:.4f}, kurtosis={ku2:.4f}")
-# (gaussien c'est 0 et 3, ici c'est pas trop loin)
+#gaussian would be 0 and 3
 
-# Q4: Kendall
+#Q4 kendall
 def kendall_tau(x, y):
-    # c'est O(n^2) mais bon on a que 999 points...
+    #O(n^2) but only 999 pts so its fine
     n = len(x); conc = 0; disc = 0
     for i in range(n):
         for j in range(i+1, n):
@@ -594,9 +570,9 @@ theta_cl = 2*tau_k/(1-tau_k) if tau_k > 0 else 0.01
 print(f"Kendall tau = {tau_k:.4f}")
 print(f"Clayton theta = {theta_cl:.4f}")
 
-# Q5: simulation avec Clayton
+#Q5 simulate with Clayton
 def sample_clayton(n, theta):
-    # methode conditionnelle inverse (cf CM section copulas)
+    #conditional inverse (from the CM)
     u1 = np.random.uniform(0,1,n)
     t = np.random.uniform(0,1,n)
     u2 = np.power(
@@ -610,18 +586,18 @@ u1_cl, u2_cl = sample_clayton(1000, theta_cl)
 z1s = norm.ppf(np.clip(u1_cl, 1e-10, 1-1e-10))
 z2s = norm.ppf(np.clip(u2_cl, 1e-10, 1-1e-10))
 
-# log returns simules
+#simulated log returns
 lr1s = np.mean(lr1) + np.std(lr1)*z1s
 lr2s = np.mean(lr2) + np.std(lr2)*z2s
 
-# prix simules
+#prix simules
 p1s = np.zeros(1001); p2s = np.zeros(1001)
 p1s[0] = p1[-1]; p2s[0] = p2[-1]
 for i in range(1000):
     p1s[i+1] = p1s[i]*np.exp(lr1s[i])
     p2s[i+1] = p2s[i]*np.exp(lr2s[i])
 
-# stats simulees
+#simulated stats
 d1s = np.mean(lr1s)*252; d2s = np.mean(lr2s)*252
 v1s = np.std(lr1s)*np.sqrt(252); v2s = np.std(lr2s)*np.sqrt(252)
 cs = np.corrcoef(lr1s, lr2s)[0,1]
@@ -634,7 +610,7 @@ print(f"{'vol 1':15s} {vol1:10.4f} {v1s:10.4f}")
 print(f"{'vol 2':15s} {vol2:10.4f} {v2s:10.4f}")
 print(f"{'corr':15s} {corr_lr:10.4f} {cs:10.4f}")
 
-# Q6: bootstrap
+#Q6 bootstrap
 def spearman_rho(x, y):
     n = len(x)
     rx = np.zeros(n); ry = np.zeros(n)
@@ -651,14 +627,14 @@ rho_sim = spearman_rho(lr1s, lr2s)
 print(f"Kendall: orig={tau_k:.4f}, sim={tau_sim:.4f}")
 print(f"Spearman: orig={rho_orig:.4f}, sim={rho_sim:.4f}")
 
-# bootstrap 500 replications
+#500 replications
 n_boot = 500
 def boot(x, y, nb):
     n = len(x); taus = []; rhos = []
     for _ in range(nb):
         idx = np.random.randint(0,n,n)
         rhos.append(spearman_rho(x[idx], y[idx]))
-        # kendall est trop lent sur 999 pts, on sous-echantillonne
+        #kendall too slow on 999, subsample to 200
         if n > 200:
             sub = np.random.choice(n, 200, replace=False)
             taus.append(kendall_tau(x[idx][sub], y[idx][sub]))
@@ -678,14 +654,12 @@ print(f"{'Kendall (sim)':25s} {np.mean(t_bs):8.4f} {np.percentile(t_bs,2.5):8.4f
 print(f"{'Spearman (orig)':25s} {np.mean(r_bo):8.4f} {np.percentile(r_bo,2.5):8.4f} {np.percentile(r_bo,97.5):8.4f}")
 print(f"{'Spearman (sim)':25s} {np.mean(r_bs):8.4f} {np.percentile(r_bs,2.5):8.4f} {np.percentile(r_bs,97.5):8.4f}")
 
-# les IC se chevauchent bien => la copule Clayton reproduit la dependance
+#CIs overlap so the copula works
 
 
-# ========================================
 # FIGURES EXERCICE 5
-# ========================================
 
-# overview donnees
+#data overview
 fig, axes = plt.subplots(2,2, figsize=(12,10))
 ax=axes[0,0]; ax.plot(p1, color='steelblue', lw=0.8, label='actif 1')
 ax.plot(p2, color='coral', lw=0.8, label='actif 2')
@@ -713,7 +687,7 @@ plt.tight_layout()
 plt.savefig('ex5_data_overview.png', dpi=150, bbox_inches='tight')
 plt.close()
 
-# QQ plots
+#QQ plots
 fig, axes = plt.subplots(1,2, figsize=(10,4.5))
 for idx, (lr, name) in enumerate([(lr1,'actif 1'),(lr2,'actif 2')]):
     ax = axes[idx]; sl = np.sort(lr); nq = len(sl)
@@ -727,7 +701,7 @@ plt.tight_layout()
 plt.savefig('ex5_qq_plots.png', dpi=150, bbox_inches='tight')
 plt.close()
 
-# simulation
+#simulation plots
 fig, axes = plt.subplots(2,2, figsize=(12,10))
 ax=axes[0,0]; ax.plot(range(n_data), p1, 'steelblue', lw=0.8, label='original')
 ax.plot(range(n_data, n_data+1001), p1s, 'orange', lw=0.8, label='simule')
@@ -753,7 +727,7 @@ plt.tight_layout()
 plt.savefig('ex5_simulation.png', dpi=150, bbox_inches='tight')
 plt.close()
 
-# bootstrap
+#bootstrap plots
 fig, axes = plt.subplots(1,2, figsize=(10,4.5))
 ax=axes[0]; ax.hist(t_bo, bins=30, density=True, alpha=0.5, color='steelblue', label='orig')
 ax.hist(t_bs, bins=30, density=True, alpha=0.5, color='orange', label='sim')
